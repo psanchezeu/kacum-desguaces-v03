@@ -1,0 +1,48 @@
+{
+  "services": [
+    {
+      "name": "frontend",
+      "type": "node",
+      "source": ".",
+      "build": {
+        "cmd": "npm run build"
+      },
+      "start": {
+        "cmd": "npm run dev"
+      },
+      "env": {
+        "VITE_API_URL": "http://backend:3001"
+      }
+    },
+    {
+      "name": "backend",
+      "type": "node",
+      "source": "backend",
+      "build": {
+        "cmd": "npm install"
+      },
+      "start": {
+        "cmd": "npm run dev"
+      },
+      "ports": [
+        3001
+      ],
+      "env": {
+        "PORT": "3001",
+        "DATABASE_URL": "postgresql://postgres:postgres@postgres:5432/kacum_desguaces"
+      }
+    }
+  ],
+  "databases": [
+    {
+      "name": "postgres",
+      "type": "postgres",
+      "version": "16",
+      "env": {
+        "POSTGRES_USER": "postgres",
+        "POSTGRES_PASSWORD": "postgres",
+        "POSTGRES_DB": "kacum_desguaces"
+      }
+    }
+  ]
+}
