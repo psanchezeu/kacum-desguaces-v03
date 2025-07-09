@@ -3,16 +3,7 @@ import cors from 'cors';
 import { PrismaClient } from '@prisma/client';
 import dotenv from 'dotenv';
 import path from 'path';
-import clientesRoutes from './routes/clientes.js';
-import vehiculosRoutes from './routes/vehiculos.js';
-import piezasRoutes from './routes/piezas.js';
-import pedidosRoutes from './routes/pedidos.js';
-import documentosRoutes from './routes/documentos.js';
-import fotosRoutes from './routes/fotos.js';
-import configuracionRoutes from './routes/configuracion.js';
-import gruasRoutes from './routes/gruas.js';
-import campasRoutes from './routes/campas.js';
-import { default as woocommerceRoutes } from './routes/woocommerce.js';
+import apiRouter from './routes/api.js';
 
 // Configuración de variables de entorno
 dotenv.config();
@@ -31,22 +22,10 @@ app.use(express.json());
 // Servir archivos estáticos
 app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 
-// Rutas
-app.use('/api/clientes', clientesRoutes);
-app.use('/api/vehiculos', vehiculosRoutes);
-app.use('/api/piezas', piezasRoutes);
-app.use('/api/pedidos', pedidosRoutes);
-app.use('/api/documentos', documentosRoutes);
-app.use('/api/fotos', fotosRoutes);
-app.use('/api/configuracion', configuracionRoutes);
-app.use('/api/gruas', gruasRoutes);
-app.use('/api/campas', campasRoutes);
-app.use('/api/woocommerce', woocommerceRoutes);
-
-// Ruta de prueba
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'OK', timestamp: new Date().toISOString() });
-});
+// Rutas de la API
+// El proxy de Coolify gestiona el enrutamiento /api.
+// El backend escucha en la ruta raíz.
+app.use('/', apiRouter);
 
 // Manejador de errores global
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
