@@ -23,20 +23,9 @@
       ],
       "env": {
         "PORT": "3001",
-        "DATABASE_URL": "postgresql://postgres:postgres@postgres:5432/kacum_desguaces"
+        "DATABASE_URL": "file:../prisma/dev.db"
       }
     }
   ],
-  "databases": [
-    {
-      "name": "postgres",
-      "type": "postgres",
-      "version": "16",
-      "env": {
-        "POSTGRES_USER": "postgres",
-        "POSTGRES_PASSWORD": "postgres",
-        "POSTGRES_DB": "kacum_desguaces"
-      }
-    }
-  ]
+  "databases": []
 }
