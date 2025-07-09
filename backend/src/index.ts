@@ -23,9 +23,8 @@ app.use(express.json());
 app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 
 // Rutas de la API
-// El proxy de Coolify gestiona el enrutamiento /api.
-// El backend escucha en la ruta raíz.
-app.use('/', apiRouter);
+// El proxy de Coolify reenvía las peticiones a /api, por lo que el backend debe escuchar en ese prefijo.
+app.use('/api', apiRouter);
 
 // Manejador de errores global
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
