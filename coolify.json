@@ -5,28 +5,50 @@
       "type": "node",
       "source": ".",
       "build": {
-        "cmd": "npm run build"
+        "cmd": "npm install && npm run build"
       },
       "start": {
-        "cmd": "npm run dev"
+        "cmd": "npm run preview -- --host"
       },
       "env": {
-        "VITE_API_URL": "http://backend:3001"
+        "VITE_API_URL": "/api"
+      },
+      "proxy": {
+        "/api": {
+          "target": "http://backend:3001",
+          "secure": false,
+          "changeOrigin": true
+        }
       }
     },
     {
       "name": "backend",
       "type": "node",
       "source": "backend",
-      "ports": [
-        3001
+      "ports": [3001],
+      "volumes": [
+        {
+          "hostPath": "./prisma",
+          "containerPath": "/app/backend/prisma"
+        },
+        {
+          "hostPath": "./uploads",
+          "containerPath": "/app/backend/uploads"
+        }
       ],
+      "build": {
+        "cmd": "npm install && npm run build"
+      },
+      "start": {
+        "cmd": "node dist/index.js"
+      },
       "env": {
         "PORT": "3001",
-        "DATABASE_URL": "file:../prisma/dev.db",
+        "DATABASE_URL": "file:./prisma/dev.db",
         "NODE_ENV": "production"
-      }
+      },
+      "networks": ["default"]
     }
   ],
-  "databases": []
+  "networks": ["default"]
 }
