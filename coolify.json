@@ -5,7 +5,12 @@
       "type": "node",
       "source": ".",
       "env": {
-        "VITE_API_URL": "http://{{services.backend.fqdn}}/api"
+        "VITE_API_URL": "/api"
+      },
+      "proxy": {
+        "/api": {
+          "destination": "http://backend:3001"
+        }
       }
     },
     {
