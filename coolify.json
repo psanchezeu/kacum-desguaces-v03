@@ -11,13 +11,19 @@
         "cmd": "npm run dev"
       },
       "env": {
-        "VITE_API_URL": "http://backend:3001"
+        "VITE_API_URL": "http://localhost:3001"
       }
     },
     {
       "name": "backend",
-      "type": "docker",
+      "type": "node",
       "source": "backend",
+      "build": {
+        "cmd": "npm run build"
+      },
+      "start": {
+        "cmd": "npm run dev"
+      },
       "ports": [
         3001
       ],
