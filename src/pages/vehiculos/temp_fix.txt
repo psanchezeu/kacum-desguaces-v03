@@ -1,0 +1,3 @@
+// Se ha movido el componente VehiculoFotosTab a un archivo separado para mejorar la organización del código
+
+

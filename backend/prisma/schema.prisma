@@ -1,0 +1,509 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// Modelos basados en los tipos definidos en el frontend
+model Cliente {
+  id                   Int                @id @default(autoincrement())
+  nombre               String
+  apellidos            String
+  dni_nif              String             @unique
+  telefono             String
+  email                String
+  direccion            String
+  tipo_cliente         String // 'particular' | 'empresa'
+  razon_social         String?
+  cif                  String?
+  acepta_comunicaciones Boolean
+  fecha_alta           DateTime           @default(now())
+  fecha_baja           DateTime?
+  observaciones        String?
+  vehiculos            Vehiculo[]
+  pedidos              Pedido[]
+  documentos           Documento[]
+  solicitudesRecogida  SolicitudRecogida[]
+  facturas             Factura[]
+  devoluciones         Devolucion[]
+  garantias            Garantia[]
+  notificaciones       Notificacion[]
+}
+
+model Vehiculo {
+  id                  Int                @id @default(autoincrement())
+  id_cliente          Int?
+  cliente             Cliente?           @relation(fields: [id_cliente], references: [id])
+  marca               String
+  modelo              String
+  version             String?
+  anio_fabricacion    Int
+  color               String
+  matricula           String             @unique
+  vin                 String?            @unique
+  tipo_combustible    String
+  kilometros          Int
+  fecha_matriculacion DateTime
+  estado              String
+  ubicacion_actual    String
+  ubicacion_gps       String?
+  observaciones       String?
+  piezas              Pieza[]
+  documentos          Documento[]
+  solicitudesRecogida SolicitudRecogida[]
+  campas              VehiculoCampa[]
+}
+
+model Pieza {
+  id                 Int                @id @default(autoincrement())
+  id_vehiculo        Int?
+  vehiculo           Vehiculo?          @relation(fields: [id_vehiculo], references: [id])
+  tipo_pieza         String
+  descripcion        String
+  estado             String // 'nueva' | 'usada' | 'dañada' | 'en_revision'
+  ubicacion_almacen  String
+  codigo_qr          String?
+  datos_adicionales  String?            // JSON con datos adicionales (metadatos de WooCommerce)
+  rfid               String?
+  fecha_extraccion   DateTime           @default(now())
+  fecha_caducidad    DateTime?
+  lote               String?
+  precio_coste       Float
+  precio_venta       Float
+  reciclable         Boolean
+  bloqueada_venta    Boolean
+  observaciones      String?
+  pedidos            Pedido[]
+  historialEstados   HistorialEstadoPieza[]
+  garantias          Garantia[]
+  transferencias     Transferencia[]
+  materialesReciclados MaterialReciclado[]
+  huellaCarbono      HuellaCarbono[]
+  documentos         Documento[]
+  fotos              Foto[]
+}
+
+model Pedido {
+  id               Int                @id @default(autoincrement())
+  id_cliente       Int
+  cliente          Cliente            @relation(fields: [id_cliente], references: [id])
+  id_pieza         Int
+  pieza            Pieza              @relation(fields: [id_pieza], references: [id])
+  tipo_venta       String // 'online' | 'presencial'
+  fecha_pedido     DateTime           @default(now())
+  estado           String // 'pendiente' | 'pagado' | 'enviado' | 'entregado' | 'cancelado' | 'devuelto'
+  metodo_pago      String
+  direccion_envio  String
+  empresa_envio    String
+  total            Float
+  facturas         Factura[]
+  devoluciones     Devolucion[]
+}
+
+model Incidencia {
+  id                  Int                @id @default(autoincrement())
+  tipo                String // 'reclamacion' | 'logistica' | 'operacion' | 'seguridad' | 'otro'
+  descripcion         String
+  id_usuario_reporta  Int
+  usuario             Usuario            @relation(fields: [id_usuario_reporta], references: [id])
+  id_entidad_afectada Int
+  entidad_tipo        String // 'pieza' | 'pedido' | 'vehiculo' | 'usuario' | 'grua'
+  estado              String // 'abierta' | 'en_proceso' | 'cerrada'
+  fecha_apertura      DateTime           @default(now())
+  fecha_cierre        DateTime?
+  resolucion          String?
+}
+
+model ActivityItem {
+  id            Int                @id @default(autoincrement())
+  tipo          String
+  descripcion   String
+  fecha         DateTime           @default(now())
+  usuario       String
+  entidad_id    Int?
+  entidad_tipo  String?
+}
+
+model Usuario {
+  id            Int                @id @default(autoincrement())
+  nombre        String
+  apellidos     String
+  email         String             @unique
+  telefono      String
+  rol           String
+  mfa_activado  Boolean
+  activo        Boolean
+  fecha_alta    DateTime           @default(now())
+  observaciones String?
+  incidencias   Incidencia[]
+  notificaciones Notificacion[]
+  auditLogs     AuditLog[]
+  rankingOperario RankingOperario[]
+}
+
+model Documento {
+  id                Int                @id @default(autoincrement())
+  id_vehiculo       Int?
+  vehiculo          Vehiculo?          @relation(fields: [id_vehiculo], references: [id])
+  id_cliente        Int?
+  cliente           Cliente?           @relation(fields: [id_cliente], references: [id])
+  id_pieza          Int?
+  pieza             Pieza?             @relation(fields: [id_pieza], references: [id])
+  nombre            String
+  tipo              String
+  url               String
+  tamanio           Int                @default(0)
+  fecha_subida      DateTime           @default(now())
+  fecha_caducidad   DateTime?
+  firmado           Boolean            @default(false)
+  estado_validacion String             @default("pendiente")
+  fecha_validacion  DateTime?
+  validado_por      Int?
+}
+
+model Grua {
+  id                       Int                @id @default(autoincrement())
+  matricula                String             @unique
+  modelo                   String
+  capacidad_kg             Int
+  conductor_asignado       String
+  estado                   String
+  gps_ultimo_punto         String?
+  fecha_ultimo_mantenimiento DateTime
+  kilometraje              Int
+  itv_estado               String
+  itv_fecha                DateTime
+  mantenimientos           MantenimientoGrua[]
+  solicitudesRecogida      SolicitudRecogida[]
+}
+
+model MantenimientoGrua {
+  id            Int                @id @default(autoincrement())
+  id_grua       Int
+  grua          Grua              @relation(fields: [id_grua], references: [id])
+  tipo          String
+  fecha         DateTime
+  realizado_por String
+  url_documento String?
+}
+
+model SolicitudRecogida {
+  id                 Int                @id @default(autoincrement())
+  id_cliente         Int
+  cliente            Cliente            @relation(fields: [id_cliente], references: [id])
+  id_vehiculo        Int
+  vehiculo           Vehiculo           @relation(fields: [id_vehiculo], references: [id])
+  id_grua            Int?
+  grua               Grua?              @relation(fields: [id_grua], references: [id])
+  fecha_solicitud    DateTime           @default(now())
+  estado             String // 'pendiente' | 'en_proceso' | 'finalizada' | 'cancelada'
+  direccion_recogida String
+  contacto_recogida  String
+  fecha_recogida     DateTime?
+  firmado_por        String?
+  url_firma          String?
+}
+
+model Almacen {
+  id                Int                @id @default(autoincrement())
+  nombre            String
+  ubicacion         String
+  responsable       String
+  tipo              String // 'principal' | 'secundario'
+  estado            String
+  transferencias_origen Transferencia[] @relation("origen")
+  transferencias_destino Transferencia[] @relation("destino")
+}
+
+model Campa {
+  id          Int                @id @default(autoincrement())
+  nombre      String
+  ubicacion   String
+  gps         String?
+  tipo        String // 'propia' | 'externa'
+  responsable String
+  estado      String
+}
+
+model HistorialEstadoPieza {
+  id        Int                @id @default(autoincrement())
+  id_pieza  Int
+  pieza     Pieza              @relation(fields: [id_pieza], references: [id])
+  estado    String
+  fecha     DateTime           @default(now())
+  usuario   String
+  motivo    String
+}
+
+model Factura {
+  id             Int                @id @default(autoincrement())
+  id_cliente     Int
+  cliente        Cliente            @relation(fields: [id_cliente], references: [id])
+  id_pedido      Int
+  pedido         Pedido             @relation(fields: [id_pedido], references: [id])
+  fecha_emision  DateTime           @default(now())
+  importe_total  Float
+  estado         String // 'emitida' | 'pagada' | 'anulada'
+  url_pdf        String?
+  iva            Float
+  base_imponible Float
+}
+
+model Devolucion {
+  id          Int                @id @default(autoincrement())
+  id_pedido   Int
+  pedido      Pedido             @relation(fields: [id_pedido], references: [id])
+  id_cliente  Int
+  cliente     Cliente            @relation(fields: [id_cliente], references: [id])
+  motivo      String
+  fecha       DateTime           @default(now())
+  estado      String
+  importe     Float
+  responsable String
+  url_documento String?
+}
+
+model Garantia {
+  id           Int                @id @default(autoincrement())
+  id_pieza     Int
+  pieza        Pieza              @relation(fields: [id_pieza], references: [id])
+  id_cliente   Int
+  cliente      Cliente            @relation(fields: [id_cliente], references: [id])
+  fecha_inicio DateTime
+  fecha_fin    DateTime
+  condiciones  String
+  estado       String
+  url_documento String?
+}
+
+model Transferencia {
+  id                 Int                @id @default(autoincrement())
+  id_pieza           Int
+  pieza              Pieza              @relation(fields: [id_pieza], references: [id])
+  id_almacen_origen  Int
+  almacen_origen     Almacen            @relation("origen", fields: [id_almacen_origen], references: [id])
+  id_almacen_destino Int
+  almacen_destino    Almacen            @relation("destino", fields: [id_almacen_destino], references: [id])
+  id_usuario         Int
+  fecha              DateTime           @default(now())
+  motivo             String
+  tipo               String // 'entrada' | 'salida' | 'traslado' | 'campa'
+}
+
+model Proveedor {
+  id          Int                @id @default(autoincrement())
+  nombre      String
+  cif         String             @unique
+  direccion   String
+  contacto    String
+  email       String
+  telefono    String
+  estado      String
+  tipo        String // 'piezas' | 'reciclaje' | 'servicios' | 'transporte'
+  productos   ProveedorProducto[]
+  compras     Compra[]
+}
+
+model ProveedorProducto {
+  id               Int                @id @default(autoincrement())
+  id_proveedor     Int
+  proveedor        Proveedor          @relation(fields: [id_proveedor], references: [id])
+  nombre           String
+  descripcion      String
+  precio_unitario  Float
+  codigo_proveedor String
+  compraDetalles   CompraDetalle[]
+}
+
+model Compra {
+  id            Int                @id @default(autoincrement())
+  id_proveedor  Int
+  proveedor     Proveedor          @relation(fields: [id_proveedor], references: [id])
+  fecha_compra  DateTime           @default(now())
+  importe_total Float
+  estado        String
+  detalles      CompraDetalle[]
+}
+
+model CompraDetalle {
+  id              Int                @id @default(autoincrement())
+  id_compra       Int
+  compra          Compra             @relation(fields: [id_compra], references: [id])
+  id_prov_prod    Int
+  producto        ProveedorProducto  @relation(fields: [id_prov_prod], references: [id])
+  cantidad        Int
+  precio_unitario Float
+}
+
+model MaterialReciclado {
+  id               Int                @id @default(autoincrement())
+  tipo_material    String
+  peso_kg          Float
+  fecha_reciclaje  DateTime           @default(now())
+  id_pieza         Int
+  pieza            Pieza              @relation(fields: [id_pieza], references: [id])
+  destino          String
+  empresa_gestora  String
+}
+
+model HuellaCarbono {
+  id          Int                @id @default(autoincrement())
+  id_pieza    Int
+  pieza       Pieza              @relation(fields: [id_pieza], references: [id])
+  gramos_co2  Float
+  fecha       DateTime           @default(now())
+  actividad   String
+}
+
+model SensorIOT {
+  id          Int                @id @default(autoincrement())
+  tipo        String
+  ubicacion   String
+  descripcion String
+  activo      Boolean
+  medidas     MedidaSensor[]
+}
+
+model MedidaSensor {
+  id        Int                @id @default(autoincrement())
+  id_sensor Int
+  sensor    SensorIOT          @relation(fields: [id_sensor], references: [id])
+  valor     Float
+  unidad    String
+  fecha     DateTime           @default(now())
+  evento    String // 'alerta' | 'normal'
+}
+
+model IAEvento {
+  id                  Int                @id @default(autoincrement())
+  tipo                String
+  entidad_afectada_id Int
+  resultado           String
+  fecha               DateTime           @default(now())
+  comentario          String
+}
+
+model Notificacion {
+  id          Int                @id @default(autoincrement())
+  id_usuario  Int
+  usuario     Usuario            @relation(fields: [id_usuario], references: [id])
+  id_cliente  Int?
+  cliente     Cliente?           @relation(fields: [id_cliente], references: [id])
+  mensaje     String
+  fecha_envio DateTime           @default(now())
+  leido       Boolean
+  tipo        String
+  canal       String
+}
+
+model RankingOperario {
+  id                 Int                @id @default(autoincrement())
+  id_usuario         Int
+  usuario            Usuario            @relation(fields: [id_usuario], references: [id])
+  puntos             Int
+  piezas_despiezadas Int
+  tiempo_medio       Float
+  periodo            DateTime
+}
+
+model Foto {
+  id                 Int                @id @default(autoincrement())
+  id_pieza           Int
+  pieza              Pieza              @relation(fields: [id_pieza], references: [id])
+  nombre             String
+  descripcion        String?
+  url                String
+  tamanio            Int                @default(0)
+  fecha_subida       DateTime           @default(now())
+  es_principal       Boolean            @default(false)
+  origen             String?            // 'manual', 'woocommerce', 'bucket', etc.
+}
+
+model AuditLog {
+  id             Int                @id @default(autoincrement())
+  tabla          String
+  registro_id    Int
+  campo          String
+  valor_anterior String
+  valor_nuevo    String
+  usuario_id     Int
+  usuario        Usuario            @relation(fields: [usuario_id], references: [id])
+  fecha          DateTime           @default(now())
+  tipo_operacion String
+}
+
+model PlantillaVehiculo {
+  id                 Int                @id @default(autoincrement())
+  nombre             String
+  marca              String
+  modelo             String
+  version            String
+  observaciones      String?
+  fecha_creacion     DateTime           @default(now())
+  fecha_modificacion DateTime?
+  activa             Boolean
+  piezas             PiezaPlantilla[]
+}
+
+model PiezaPlantilla {
+  id                 Int                @id @default(autoincrement())
+  id_plantilla       Int
+  plantilla          PlantillaVehiculo @relation(fields: [id_plantilla], references: [id])
+  nombre             String
+  descripcion        String
+  categoria          String
+  obligatoria        Boolean
+}
+
+model CampaAlmacenamiento {
+  id                Int                @id @default(autoincrement())
+  nombre            String
+  direccion         String
+  ubicacion_gps     String?
+  capacidad_maxima  Int
+  estado            String // 'activa' | 'inactiva' | 'mantenimiento'
+  observaciones     String?
+  fecha_creacion    DateTime           @default(now())
+  vehiculos         VehiculoCampa[]
+}
+
+model VehiculoCampa {
+  id                Int                @id @default(autoincrement())
+  id_vehiculo       Int
+  id_campa          Int
+  vehiculo          Vehiculo           @relation(fields: [id_vehiculo], references: [id])
+  campa             CampaAlmacenamiento @relation(fields: [id_campa], references: [id])
+  fecha_asignacion  DateTime           @default(now())
+  estado            String // 'almacenado' | 'en_proceso' | 'listo_despiece'
+}
+
+model Configuracion {
+  id                Int                @id @default(autoincrement())
+  clave             String             @unique
+  valor             String
+  tipo              String             // 'texto', 'numero', 'booleano', 'json'
+  categoria         String             // 'general', 'notificaciones', 'seguridad', etc.
+  descripcion       String?
+  fecha_actualizacion DateTime          @default(now())
+  usuario_actualizacion String?
+}
+
+// Configuración para la integración con WooCommerce
+// Almacena los datos de conexión y configuración para la API de WooCommerce
+model WooCommerceConfig {
+  id                Int                @id @default(autoincrement())
+  url               String             // URL de la tienda WooCommerce
+  consumer_key      String             // Consumer Key para la API
+  consumer_secret   String             // Consumer Secret para la API
+  api_version       String             @default("v3") // Versión de la API
+  activo            Boolean            @default(false) // Si la integración está activa
+  fecha_creacion    DateTime           @default(now())
+  fecha_actualizacion DateTime         @default(now())
+  usuario_actualizacion String?
+}

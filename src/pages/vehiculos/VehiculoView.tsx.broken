@@ -1,0 +1,920 @@
+
+import React, { useState, useEffect, useRef } from "react";
+import { useNavigate, useParams, Routes, Route, Navigate } from "react-router-dom";
+import PageLayout from "@/components/layout/PageLayout";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Edit, Trash2, Box, FileText, Camera, Calendar, Loader2, Upload, X, Check, Star } from "lucide-react";
+import TabsNavigation, { TabItem } from "@/components/common/TabsNavigation";
+import { useToast } from "@/hooks/use-toast";
+import { vehiculosService } from "@/services/vehiculosService";
+import { clientesService } from "@/services/clientesService";
+import { piezasService } from "@/services/piezasService";
+import { vehiculoDocumentosService, VehiculoDocumento } from "@/services/vehiculoDocumentosService";
+import { vehiculoFotosService } from "@/services/vehiculoFotosService";
+import VehiculoFotosTab from "./VehiculoFotosTab";
+import { Vehiculo, Cliente, Pieza } from "@/types";
+import DataTable from "@/components/common/DataTable";
+import { cn } from "@/lib/utils";
+
+const VehiculoPiezasTab: React.FC<{ vehiculoId: string }> = ({ vehiculoId }) => {
+  const navigate = useNavigate();
+  const [piezas, setPiezas] = useState<Pieza[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+  
+  useEffect(() => {
+    const fetchPiezas = async () => {
+      if (!vehiculoId) return;
+      
+      setIsLoading(true);
+      try {
+        const piezasData = await piezasService.getByVehiculoId(Number(vehiculoId));
+        setPiezas(piezasData);
+        setError(null);
+      } catch (err) {
+        console.error('Error al cargar piezas del vehículo:', err);
+        setError('No se pudieron cargar las piezas asociadas a este vehículo.');
+        setPiezas([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    fetchPiezas();
+  }, [vehiculoId]);
+  
+  const piezasColumns = [
+    {
+      header: "Tipo",
+      accessor: (p: any) => p.tipo_pieza
+    },
+    {
+      header: "Descripción",
+      accessor: (p: any) => p.descripcion
+    },
+    {
+      header: "Estado",
+      accessor: (p: any) => p.estado,
+      render: (p: any) => (
+        <Badge variant="outline" className={
+          p.estado === "nueva" ? "border-green-500 text-green-500" :
+          p.estado === "usada" ? "border-blue-500 text-blue-500" :
+          p.estado === "dañada" ? "border-red-500 text-red-500" :
+          p.estado === "en_revision" ? "border-amber-500 text-amber-500" :
+          "border-gray-500 text-gray-500"
+        }>
+          {p.estado}
+        </Badge>
+      )
+    },
+    {
+      header: "Precio",
+      accessor: (p: any) => `${p.precio_venta.toFixed(2)} €`
+    },
+    {
+      header: "Ubicación",
+      accessor: (p: any) => p.ubicacion_almacen
+    }
+  ];
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Box className="h-5 w-5" />
+          Piezas del Vehículo
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        {isLoading ? (
+          <div className="flex justify-center items-center py-8">
+            <Loader2 className="h-6 w-6 animate-spin text-primary mr-2" />
+            <span>Cargando piezas...</span>
+          </div>
+        ) : error ? (
+          <div className="text-center py-8 text-red-500">
+            <p>{error}</p>
+            <Button onClick={() => navigate(`/vehiculos/${vehiculoId}`)} className="mt-4" variant="outline">
+              Volver a la información del vehículo
+            </Button>
+          </div>
+        ) : piezas.length > 0 ? (
+          <DataTable
+            data={piezas}
+            columns={piezasColumns}
+            idField="id"
+            basePath="/piezas"
+          />
+        ) : (
+          <div className="text-center py-8 text-muted-foreground">
+            <Box className="h-12 w-12 mx-auto mb-4 opacity-50" />
+            <p>Este vehículo no tiene piezas registradas todavía.</p>
+            <Button onClick={() => navigate(`/piezas/nuevo?vehiculo=${vehiculoId}`)} className="mt-4" variant="outline">
+              Añadir Piezas
+            </Button>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+};
+
+const VehiculoDocumentosTab: React.FC<{ vehiculoId: string }> = ({ vehiculoId }) => {
+  const { toast } = useToast();
+  const [documentos, setDocumentos] = useState<VehiculoDocumento[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isUploading, setIsUploading] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const fetchDocumentos = async () => {
+    if (!vehiculoId) return;
+    
+    setIsLoading(true);
+    try {
+      const data = await vehiculoDocumentosService.getByVehiculoId(Number(vehiculoId));
+      setDocumentos(data);
+      setError(null);
+    } catch (err) {
+      console.error('Error al cargar documentos:', err);
+      setError('No se pudieron cargar los documentos del vehículo.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchDocumentos();
+  }, [vehiculoId]);
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0) return;
+    
+    const files = Array.from(e.target.files);
+    setIsUploading(true);
+    
+    let successCount = 0;
+    let errorCount = 0;
+    
+    // Procesar cada archivo
+    for (const file of files) {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('nombre', file.name);
+      
+      try {
+        await vehiculoDocumentosService.upload(Number(vehiculoId), formData);
+        successCount++;
+      } catch (err) {
+        console.error(`Error al subir documento ${file.name}:`, err);
+        errorCount++;
+      }
+    }
+    
+    // Mostrar mensaje de resultado
+    if (successCount > 0) {
+      toast({
+        title: successCount > 1 ? `${successCount} documentos subidos` : "Documento subido",
+        description: successCount > 1 
+          ? `Se han subido ${successCount} documentos correctamente.` 
+          : "El documento se ha subido correctamente."
+      });
+    }
+    
+    if (errorCount > 0) {
+      toast({
+        title: errorCount > 1 ? `Error en ${errorCount} documentos` : "Error",
+        description: errorCount > 1 
+          ? `No se pudieron subir ${errorCount} documentos. Inténtalo de nuevo.` 
+          : "No se pudo subir el documento. Inténtalo de nuevo.",
+        variant: "destructive"
+      });
+    }
+    
+    // Actualizar la lista de documentos
+    fetchDocumentos();
+    
+    // Resetear el input
+    setIsUploading(false);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const handleDelete = async (id: number) => {
+    if (!confirm('¿Estás seguro de que deseas eliminar este documento?')) return;
+    
+    try {
+      await vehiculoDocumentosService.delete(id);
+      toast({
+        title: "Documento eliminado",
+        description: "El documento ha sido eliminado correctamente."
+      });
+      setDocumentos(documentos.filter(doc => doc.id !== id));
+    } catch (err) {
+      console.error('Error al eliminar documento:', err);
+      toast({
+        title: "Error",
+        description: "No se pudo eliminar el documento. Inténtalo de nuevo.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <FileText className="h-5 w-5" />
+            Documentos del Vehículo
+          </div>
+          <Button 
+            onClick={() => fileInputRef.current?.click()} 
+            disabled={isUploading}
+            size="sm"
+          >
+            {isUploading ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                Subiendo...
+              </>
+            ) : (
+              <>
+                <Upload className="h-4 w-4 mr-2" />
+                Subir Documento
+              </>
+            )}
+          </Button>
+          <input 
+            type="file" 
+            ref={fileInputRef} 
+            className="hidden" 
+            onChange={handleFileChange}
+            accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.jpg,.jpeg,.png"
+            multiple
+          />
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        {isLoading ? (
+          <div className="flex justify-center items-center py-8">
+            <Loader2 className="h-6 w-6 animate-spin text-primary mr-2" />
+            <span>Cargando documentos...</span>
+          </div>
+        ) : error ? (
+          <div className="text-center py-8 text-red-500">
+            <p>{error}</p>
+          </div>
+        ) : documentos.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {documentos.map(doc => (
+              <div key={doc.id} className="flex items-center justify-between p-3 border rounded-md">
+                <div className="flex items-center">
+                  <FileText className="h-5 w-5 mr-2 text-blue-500" />
+                  <div>
+                    <p className="font-medium">{doc.nombre}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {new Date(doc.fecha_subida).toLocaleDateString()} · {(doc.tamanio / 1024).toFixed(2)} KB
+                    </p>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    asChild
+                  >
+                    <a href={doc.url} target="_blank" rel="noopener noreferrer">
+                      <FileText className="h-4 w-4" />
+                    </a>
+                  </Button>
+                  <Button 
+                    variant="ghost" 
+                    size="icon"
+                    onClick={() => handleDelete(doc.id)}
+                  >
+                    <Trash2 className="h-4 w-4 text-red-500" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-8 text-muted-foreground">
+            <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
+            <p>No hay documentos disponibles para este vehículo.</p>
+            <Button 
+              className="mt-4" 
+              variant="outline"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isUploading}
+            >
+              Subir Documento
+            </Button>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+};
+
+// Se ha movido el componente VehiculoFotosTab a un archivo separado para mejorar la organización del código
+
+const VehiculoInfoTab: React.FC<{ vehiculo: Vehiculo; cliente: Cliente | null }> = ({ vehiculo, cliente }) => {
+    if (!vehiculoId) return;
+    
+    setIsLoading(true);
+    try {
+      // Obtener fotos del vehículo
+      const data = await vehiculoFotosService.getByVehiculoId(Number(vehiculoId));
+      setFotos(data);
+
+      // Obtener piezas asociadas al vehículo
+      const piezasData = await piezasService.getByVehiculoId(Number(vehiculoId));
+      
+      // Si hay piezas, obtener las fotos de la primera pieza
+      if (piezasData && piezasData.length > 0) {
+        const primerasPiezas = piezasData.slice(0, 1);
+        
+        for (const pieza of primerasPiezas) {
+          try {
+            const fotosPieza = await fotosService.getByPiezaId(pieza.id);
+            // Obtener las 3 últimas fotos y añadirlas
+            const ultimasFotos = fotosPieza.sort((a, b) => {
+              const fechaA = new Date(a.fecha_subida).getTime();
+              const fechaB = new Date(b.fecha_subida).getTime();
+              return fechaB - fechaA;
+            }).slice(0, 3);
+            
+            setFotosPiezas(ultimasFotos);
+          } catch (err) {
+            console.warn(`Error al obtener fotos para pieza ${pieza.id}:`, err);
+          }
+        }
+      }
+      
+      setError(null);
+    } catch (err) {
+      console.error('Error al cargar fotografías:', err);
+      setError('No se pudieron cargar las fotografías del vehículo.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchFotos();
+  }, [vehiculoId]);
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0) return;
+    
+    const files = Array.from(e.target.files);
+    setIsUploading(true);
+    
+    let successCount = 0;
+    let errorCount = 0;
+    let invalidCount = 0;
+    
+    // Procesar cada archivo
+    for (const file of files) {
+      // Verificar que sea una imagen
+      if (!file.type.startsWith('image/')) {
+        invalidCount++;
+        continue;
+      }
+      
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('nombre', file.name);
+      
+      try {
+        await vehiculoFotosService.upload(Number(vehiculoId), formData);
+        successCount++;
+      } catch (err) {
+        console.error(`Error al subir fotografía ${file.name}:`, err);
+        errorCount++;
+      }
+    }
+    
+    // Mostrar mensajes de resultado
+    if (invalidCount > 0) {
+      toast({
+        title: invalidCount > 1 ? `${invalidCount} archivos no válidos` : "Archivo no válido",
+        description: invalidCount > 1 
+          ? `${invalidCount} archivos no son imágenes válidas (JPG, PNG, etc.).` 
+          : "Un archivo no es una imagen válida (JPG, PNG, etc.).",
+        variant: "destructive"
+      });
+    }
+    
+    if (successCount > 0) {
+      toast({
+        title: successCount > 1 ? `${successCount} fotografías subidas` : "Fotografía subida",
+        description: successCount > 1 
+          ? `Se han subido ${successCount} fotografías correctamente.` 
+          : "La fotografía se ha subido correctamente."
+      });
+    }
+    
+    if (errorCount > 0) {
+      toast({
+        title: errorCount > 1 ? `Error en ${errorCount} fotografías` : "Error",
+        description: errorCount > 1 
+          ? `No se pudieron subir ${errorCount} fotografías. Inténtalo de nuevo.` 
+          : "No se pudo subir la fotografía. Inténtalo de nuevo.",
+        variant: "destructive"
+      });
+    }
+    
+    // Actualizar la lista de fotos
+    fetchFotos();
+    
+    // Resetear el input
+    setIsUploading(false);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const handleDelete = async (id: number) => {
+    if (!confirm('¿Estás seguro de que deseas eliminar esta fotografía?')) return;
+    
+    try {
+      await vehiculoFotosService.delete(id);
+      toast({
+        title: "Fotografía eliminada",
+        description: "La fotografía ha sido eliminada correctamente."
+      });
+      setFotos(fotos.filter(foto => foto.id !== id));
+    } catch (err) {
+      console.error('Error al eliminar fotografía:', err);
+      toast({
+        title: "Error",
+        description: "No se pudo eliminar la fotografía. Inténtalo de nuevo.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleSetAsPrincipal = async (id: number) => {
+    try {
+      await vehiculoFotosService.setAsPrincipal(id);
+      toast({
+        title: "Fotografía principal actualizada",
+        description: "Se ha establecido como fotografía principal."
+      });
+      // Actualizar estado local
+      setFotos(fotos.map(foto => ({
+        ...foto,
+        es_principal: foto.id === id
+      })));
+    } catch (err) {
+      console.error('Error al establecer foto principal:', err);
+      toast({
+        title: "Error",
+        description: "No se pudo establecer como foto principal. Inténtalo de nuevo.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Camera className="h-5 w-5" />
+            Fotografías del Vehículo
+          </div>
+          <Button 
+            onClick={() => fileInputRef.current?.click()} 
+            disabled={isUploading}
+            size="sm"
+          >
+            {isUploading ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                Subiendo...
+              </>
+            ) : (
+              <>
+                <Upload className="h-4 w-4 mr-2" />
+                Subir Fotografía
+              </>
+            )}
+          </Button>
+          <input 
+            type="file" 
+            ref={fileInputRef} 
+            className="hidden" 
+            onChange={handleFileChange}
+            accept="image/*"
+            multiple
+          />
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        {isLoading ? (
+          <div className="flex justify-center items-center py-8">
+            <Loader2 className="h-6 w-6 animate-spin text-primary mr-2" />
+            <span>Cargando fotografías...</span>
+          </div>
+                  <Button 
+                    variant="secondary" 
+                    size="icon"
+                    onClick={() => handleSetAsPrincipal(foto.id)}
+                    title="Establecer como principal"
+                  >
+                    <Star className="h-4 w-4" />
+                  </Button>
+                )}
+                <Button 
+                  variant="destructive" 
+                  size="icon"
+                  onClick={() => handleDelete(foto.id)}
+                  title="Eliminar fotografía"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </>
+    ) : (
+      <div className="text-center py-8 text-muted-foreground">
+        <Camera className="h-12 w-12 mx-auto mb-4 opacity-50" />
+        <p>No hay fotografías disponibles para este vehículo.</p>
+        <Button 
+          className="mt-4" 
+          variant="outline"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={isUploading}
+        >
+          Subir Fotografía
+        </Button>
+      </div>
+    )}
+    {fotosPiezas.length > 0 && (
+      <>
+        <h3 className="font-medium mb-3 mt-6">Últimas fotografías de piezas asociadas</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          {fotosPiezas.map(foto => (
+            <div key={`pieza-${foto.id}`} className="overflow-hidden rounded-md border bg-card shadow relative">
+              <div className="relative aspect-square">
+                <img 
+                  src={foto.url} 
+                  alt={foto.nombre} 
+                  className="h-full w-full object-cover transition-all hover:scale-105"
+                  onError={(e) => (e.target as HTMLImageElement).src = '/placeholder-image.png'}
+                />
+                {foto.es_principal && (
+                  <div className="absolute top-2 left-2">
+                    <Badge className="bg-yellow-500"><Star className="w-3 h-3 mr-1" /> Principal</Badge>
+                  </div>
+                )}
+              </div>
+              <div className="p-2 text-xs text-muted-foreground truncate">
+                {foto.nombre}
+              </div>
+            </div>
+          ))}
+        </div>
+      </>
+    )}
+  </CardContent>
+</Card>
+);
+
+const VehiculoInfoTab: React.FC<{ vehiculo: Vehiculo; cliente: Cliente }> = ({ vehiculo, cliente }) => {
+  const [piezasCount, setPiezasCount] = useState<number>(0);
+  const [documentosCount, setDocumentosCount] = useState<number>(0);
+  const [fotosCount, setFotosCount] = useState<number>(0);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+
+  useEffect(() => {
+    const fetchCounts = async () => {
+      setIsLoading(true);
+      try {
+        // Obtener conteo de piezas
+        const piezasData = await piezasService.getByVehiculoId(vehiculo.id);
+        setPiezasCount(piezasData.length);
+        
+        // Obtener conteo de documentos
+        const documentosData = await vehiculoDocumentosService.getByVehiculoId(vehiculo.id);
+        setDocumentosCount(documentosData.length);
+        
+        // Obtener conteo de fotos
+        const fotosData = await vehiculoFotosService.getByVehiculoId(vehiculo.id);
+        setFotosCount(fotosData.length);
+      } catch (err) {
+        console.error('Error al cargar conteos:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    fetchCounts();
+  }, [vehiculo.id]);
+  const navigate = useNavigate();
+  
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+      <Card className="lg:col-span-2">
+        <CardHeader>
+          <CardTitle>Información del Vehículo</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <p className="text-sm font-medium text-muted-foreground">Marca y Modelo</p>
+              <p>{vehiculo.marca} {vehiculo.modelo}</p>
+              {vehiculo.version && (
+                <p className="text-sm text-muted-foreground">{vehiculo.version}</p>
+              )}
+            </div>
+            
+            <div>
+              <p className="text-sm font-medium text-muted-foreground">Matrícula</p>
+              <p>{vehiculo.matricula}</p>
+            </div>
+            
+            <div>
+              <p className="text-sm font-medium text-muted-foreground">VIN</p>
+              <p>{vehiculo.vin}</p>
+            </div>
+            
+            <div>
+              <p className="text-sm font-medium text-muted-foreground">Año de Fabricación</p>
+              <p>{vehiculo.anio_fabricacion}</p>
+            </div>
+            
+            <div>
+              <p className="text-sm font-medium text-muted-foreground">Color</p>
+              <p>{vehiculo.color}</p>
+            </div>
+            
+            <div>
+              <p className="text-sm font-medium text-muted-foreground">Kilómetros</p>
+              <p>{vehiculo.kilometros.toLocaleString()} km</p>
+            </div>
+            
+            <div>
+              <p className="text-sm font-medium text-muted-foreground">Tipo de Combustible</p>
+              <p>{vehiculo.tipo_combustible}</p>
+            </div>
+            
+            <div>
+              <p className="text-sm font-medium text-muted-foreground">Fecha de Matriculación</p>
+              <p>{new Date(vehiculo.fecha_matriculacion).toLocaleDateString('es-ES')}</p>
+            </div>
+            
+            <div>
+              <p className="text-sm font-medium text-muted-foreground">Ubicación Actual</p>
+              <p>{vehiculo.ubicacion_actual}</p>
+            </div>
+            
+            {vehiculo.ubicacion_gps && (
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Ubicación GPS</p>
+                <p>{vehiculo.ubicacion_gps}</p>
+              </div>
+            )}
+            
+            <div className="md:col-span-2">
+              <p className="text-sm font-medium text-muted-foreground">Propietario</p>
+              <p>
+                {cliente ? (
+                  <span className="cursor-pointer text-primary hover:underline" onClick={() => navigate(`/clientes/${cliente.id}`)}>
+                    {cliente.nombre} {cliente.apellidos} {cliente.tipo_cliente === 'empresa' && `(${cliente.razon_social || 'Empresa'})`}
+                  </span>
+                ) : (
+                  "Propietario desconocido"
+                )}
+              </p>
+            </div>
+            
+            {vehiculo.observaciones && (
+              <div className="md:col-span-2">
+                <p className="text-sm font-medium text-muted-foreground">Observaciones</p>
+                <p>{vehiculo.observaciones}</p>
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+      
+      <Card>
+        <CardHeader>
+          <CardTitle>Datos Adicionales</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            <div className="flex items-center space-x-2">
+              <Badge variant={
+                vehiculo.estado === "activo" ? "default" :
+                vehiculo.estado === "procesando" ? "secondary" :
+                vehiculo.estado === "desguazado" ? "outline" :
+                vehiculo.estado === "baja" ? "destructive" :
+                "outline"
+              }>
+                {vehiculo.estado}
+              </Badge>
+              <div>
+                <p className="text-sm font-medium">Estado del Vehículo</p>
+              </div>
+            </div>
+            
+            <div className="flex items-center space-x-2">
+              <Box className="h-5 w-5 text-muted-foreground" />
+              <div>
+                <p className="text-sm font-medium">
+                  {isLoading ? (
+                    <span className="flex items-center">
+                      <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                      Cargando...
+                    </span>
+                  ) : (
+                    `${piezasCount} Piezas registradas`
+                  )}
+                </p>
+              </div>
+            </div>
+            
+            <div className="flex items-center space-x-2">
+              <FileText className="h-5 w-5 text-muted-foreground" />
+              <div>
+                <p className="text-sm font-medium">
+                  {isLoading ? (
+                    <span className="flex items-center">
+                      <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                      Cargando...
+                    </span>
+                  ) : (
+                    `${documentosCount} Documentos`
+                  )}
+                </p>
+              </div>
+            </div>
+            
+            <div className="flex items-center space-x-2">
+              <Camera className="h-5 w-5 text-muted-foreground" />
+              <div>
+                <p className="text-sm font-medium">
+                  {isLoading ? (
+                    <span className="flex items-center">
+                      <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                      Cargando...
+                    </span>
+                  ) : (
+                    `${fotosCount} Fotografías`
+                  )}
+                </p>
+              </div>
+            </div>
+            
+            <div className="flex items-center space-x-2">
+              <Calendar className="h-5 w-5 text-muted-foreground" />
+              <div>
+                <p className="text-sm font-medium">
+                  Registrado el {new Date(vehiculo.fecha_matriculacion).toLocaleDateString('es-ES')}
+                </p>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+};
+
+const VehiculoView: React.FC = () => {
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  const [vehiculo, setVehiculo] = useState<Vehiculo | null>(null);
+  const [cliente, setCliente] = useState<Cliente | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+  
+  // Cargar datos del vehículo y cliente desde el backend
+  useEffect(() => {
+    const fetchData = async () => {
+      if (!id) return;
+      
+      setIsLoading(true);
+      try {
+        // Obtener vehículo
+        const vehiculoData = await vehiculosService.getById(Number(id));
+        setVehiculo(vehiculoData);
+        
+        // Obtener cliente asociado
+        if (vehiculoData.id_cliente) {
+          const clienteData = await clientesService.getById(vehiculoData.id_cliente);
+          setCliente(clienteData);
+        }
+        
+        setError(null);
+      } catch (err) {
+        console.error('Error al cargar datos:', err);
+        setError('No se pudieron cargar los datos del vehículo.');
+        setVehiculo(null);
+        setCliente(null);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [id]);
+  
+  // Tabs para la navegación
+  const tabs: TabItem[] = [
+    { label: "Información", value: "info", path: `/vehiculos/${id}` },
+    { label: "Piezas", value: "piezas", path: `/vehiculos/${id}/piezas` },
+    { label: "Documentos", value: "documentos", path: `/vehiculos/${id}/documentos` },
+    { label: "Fotografías", value: "fotos", path: `/vehiculos/${id}/fotos` }
+  ];
+
+  const handleDelete = async () => {
+    if (!id) return;
+    
+    try {
+      await vehiculosService.delete(Number(id));
+      toast({
+        title: "Vehículo eliminado",
+        description: "El vehículo ha sido eliminado correctamente.",
+      });
+      navigate("/vehiculos");
+    } catch (error) {
+      console.error("Error al eliminar vehículo:", error);
+      toast({
+        title: "Error",
+        description: "No se pudo eliminar el vehículo. Por favor, inténtalo de nuevo.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <PageLayout title="Cargando vehículo...">
+        <div className="flex justify-center items-center h-64">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <span className="ml-2">Cargando información del vehículo...</span>
+        </div>
+      </PageLayout>
+    );
+  }
+
+  if (error || !vehiculo) {
+    return (
+      <PageLayout title="Vehículo no encontrado">
+        <div className="text-center py-10">
+          <p className="text-red-500 mb-4">{error || `No se ha encontrado el vehículo con ID ${id}`}</p>
+          <Button 
+            variant="outline"
+            onClick={() => navigate("/vehiculos")}
+          >
+            Volver al listado de vehículos
+          </Button>
+        </div>
+      </PageLayout>
+    );
+  }
+
+  return (
+    <PageLayout title={`Vehículo: ${vehiculo.marca} ${vehiculo.modelo} (${vehiculo.matricula})`}>
+      <div className="mb-6 flex justify-between items-center">
+        <Badge variant="outline" className="text-base py-1 px-3">
+          {vehiculo.estado}
+        </Badge>
+        
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => navigate(`/vehiculos/${id}/editar`)}>
+            <Edit className="mr-2 h-4 w-4" /> Editar
+          </Button>
+          <Button variant="destructive" onClick={handleDelete}>
+            <Trash2 className="mr-2 h-4 w-4" /> Eliminar
+          </Button>
+        </div>
+      </div>
+
+      <TabsNavigation tabs={tabs} className="mb-6" />
+
+      <Routes>
+        <Route path="/" element={<VehiculoInfoTab vehiculo={vehiculo} cliente={cliente} />} />
+        <Route path="/piezas" element={<VehiculoPiezasTab vehiculoId={id!} />} />
+        <Route path="/documentos" element={<VehiculoDocumentosTab vehiculoId={id!} />} />
+        <Route path="/fotos" element={<VehiculoFotosTab vehiculoId={id!} />} />
+        <Route path="*" element={<Navigate to={`/vehiculos/${id}`} replace />} />
+      </Routes>
+    </PageLayout>
+  );
+};
+
+export default VehiculoView;
