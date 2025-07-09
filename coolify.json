@@ -16,14 +16,8 @@
     },
     {
       "name": "backend",
-      "type": "node",
+      "type": "docker",
       "source": "backend",
-      "build": {
-        "cmd": "npm install"
-      },
-      "start": {
-        "cmd": "npm run dev"
-      },
       "ports": [
         3001
       ],
