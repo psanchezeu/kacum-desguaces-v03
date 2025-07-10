@@ -9,8 +9,7 @@
       },
       "proxy": {
         "/api": {
-          "destination": "http://backend:3001",
-          "stripPrefix": true
+          "destination": "http://backend:3001"
         }
       }
     },

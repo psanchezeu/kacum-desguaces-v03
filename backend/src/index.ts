@@ -23,8 +23,8 @@ app.use(express.json());
 app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 
 // Rutas de la API
-// Con 'stripPrefix: true' en el proxy, el backend recibe las peticiones en la ruta raíz.
-app.use('/', apiRouter);
+// El backend escucha en el prefijo /api para ser consistente en local y producción.
+app.use('/api', apiRouter);
 
 // Manejador de errores global
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
